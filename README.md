@@ -55,9 +55,17 @@ struct DeviceInfo {
 
 建设中...
 
+先安装/配置 vcpkg，并置好VCPKG_ROOT或用 -DCMAKE_TOOLCHAIN_FILE 指向 vcpkg toolchain
+```
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake
+cmake --build build --config Debug
+```
+
 ### 🚀 使用
 
 建设中...
+
+chcp 65001 && .\build\Debug\DeviceWatcher.exe --help
 
 ### 🗂️ 导出格式
 
