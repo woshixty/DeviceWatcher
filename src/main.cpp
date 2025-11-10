@@ -2,8 +2,10 @@
 
 #include <iostream>
 #include <string>
+#include <cstdlib>
 
 #include <fmt/core.h>
+#include <spdlog/spdlog.h>
 
 #include "ui/CliMenu.h"
 #include "core/DeviceManager.h"
@@ -19,6 +21,14 @@ static void print_help(const char* argv0) {
 }
 
 int main(int argc, char** argv) {
+    // Logging setup
+    spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+    const char* env = std::getenv("DW_LOG");
+    if (env && std::string(env) == "debug") {
+        spdlog::set_level(spdlog::level::debug);
+    } else {
+        spdlog::set_level(spdlog::level::info);
+    }
     if (argc > 1) {
         std::string arg = argv[1];
         if (arg == "--help" || arg == "-h") {
@@ -32,6 +42,7 @@ int main(int argc, char** argv) {
     }
 
     fmt::print("DeviceWatcher started\n");
+    spdlog::info("DeviceWatcher version {}", DEVICEWATCHER_VERSION);
 
     DeviceManager manager;
     // Subscribe printer

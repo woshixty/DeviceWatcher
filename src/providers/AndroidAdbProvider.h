@@ -37,4 +37,8 @@ private:
     std::atomic<bool> running_{false};
     std::mutex sockMtx_;
     std::shared_ptr<asio::ip::tcp::socket> currentSocket_;
+
+    // ADB server endpoint (configurable via env)
+    std::string host_ = "127.0.0.1";
+    std::string port_ = "5037";
 };
