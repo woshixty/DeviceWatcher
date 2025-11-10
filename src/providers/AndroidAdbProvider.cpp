@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 
 #include <fmt/core.h>
 #include <spdlog/spdlog.h>
@@ -192,9 +193,42 @@ void AndroidAdbProvider::runLoop() {
 
                 known.swap(fresh);
             }
+        } catch (const std::system_error& se) {
+            // System-level error (e.g., read canceled on shutdown, network errors)
+            const int ev = se.code().value();
+            const bool is_abort = (se.code() == asio::error::operation_aborted)
+#ifdef _WIN32
+                                   || (ev == 10004) /* WSAEINTR/WSACancelBlockingCall */
+#endif
+                                   ;
+            if (!running_ || is_abort) {
+                spdlog::debug("[ADB] socket canceled (stopping) ec={}", ev);
+            } else {
+                // Avoid encoding issues by logging code and a short ASCII-only message
+                std::string msg = se.code().message();
+                for (char& ch : msg) {
+                    if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126) ch = '?';
+                }
+                spdlog::warn("[ADB] error ec={} msg={} ", ev, msg);
+                // If connection dropped unexpectedly, mark all known as detached to keep higher layers consistent
+                if (!known.empty()) {
+                    spdlog::info("[ADB] connection dropped; detaching {} known device(s)", known.size());
+                    for (auto& kv : known) {
+                        DeviceInfo info = kv.second;
+                        info.online = false;
+                        DeviceEvent evt{ DeviceEvent::Kind::Detach, info };
+                        manager_.onEvent(evt);
+                    }
+                    known.clear();
+                }
+            }
         } catch (const std::exception& ex) {
-            // Connection issue; fall-through to retry
-            spdlog::warn("[ADB] error: {}", ex.what());
+            // Generic error
+            std::string msg = ex.what();
+            for (char& ch : msg) {
+                if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126) ch = '?';
+            }
+            spdlog::warn("[ADB] error: {}", msg);
         }
 
         // Small sleep before reconnect
