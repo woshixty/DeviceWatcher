@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 #include "ui/CliMenu.h"
 #include "core/DeviceManager.h"
@@ -62,6 +62,8 @@ int main(int argc, char** argv) {
     });
 
     AndroidAdbProvider adb(manager);
-    CliMenu menu(manager, adb);
+    // Auto-start Android watcher to ensure events print without menu interaction
+    adb.start();
+    CliMenu menu(manager, adb, true);
     return menu.run();
 }

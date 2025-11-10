@@ -5,8 +5,8 @@
 
 class CliMenu {
 public:
-    CliMenu(DeviceManager& manager, AndroidAdbProvider& adb)
-        : manager_(manager), adb_(adb) {}
+    CliMenu(DeviceManager& manager, AndroidAdbProvider& adb, bool initialAndroidRunning = false)
+        : manager_(manager), adb_(adb), adbRunning_(initialAndroidRunning) {}
 
     int run(); // returns exit code
 

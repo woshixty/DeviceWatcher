@@ -2,10 +2,11 @@
 
 #include <chrono>
 #include <array>
+#include <vector>
 #include <sstream>
 #include <stdexcept>
 
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 using asio::ip::tcp;
 
@@ -46,15 +47,20 @@ void AndroidAdbProvider::runLoop() {
     while (running_) {
         try {
             asio::io_context io;
-            tcp::socket socket(io);
+            auto sockPtr = std::make_shared<tcp::socket>(io);
             {
                 std::lock_guard<std::mutex> lk(sockMtx_);
-                currentSocket_ = std::make_shared<tcp::socket>(std::move(socket));
+                currentSocket_ = sockPtr;
             }
             // Connect
             tcp::resolver resolver(io);
             auto endpoints = resolver.resolve("127.0.0.1", "5037");
-            asio::connect(*currentSocket_, endpoints);
+            std::error_code ec;
+            asio::connect(*currentSocket_, endpoints, ec);
+            if (ec) {
+                throw std::runtime_error(std::string("ADB connect failed: ") + ec.message());
+            }
+            // fmt::print("[ADB] Connected to 127.0.0.1:5037\n");
 
             // Send request and process streaming updates
             sendAdbRequest(*currentSocket_, "host:track-devices-l");
@@ -138,6 +144,7 @@ void AndroidAdbProvider::runLoop() {
             }
         } catch (const std::exception& ex) {
             // Connection issue; fall-through to retry
+            // fmt::print("[ADB] error: {}\n", ex.what());
         }
 
         // Small sleep before reconnect
