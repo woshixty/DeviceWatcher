@@ -2,17 +2,26 @@
 
 #include <string>
 
+// Device platform/type
+enum class Type {
+    Android,
+    iOS,
+    Unknown
+};
+
 struct DeviceInfo {
-    std::string type;         // e.g. "android", "ios", "usb"
-    std::string uid;          // unique identifier per device
-    std::string displayName;  // user-friendly name
-    bool online{false};       // online/offline state
+    Type type{Type::Unknown};    // platform
+    std::string uid;             // unique identifier per device (e.g., serial)
+    std::string displayName;     // user-friendly name
+    bool online{false};          // online/offline state
+
+    // Android extras (optional for other platforms)
+    std::string model;           // e.g., "Pixel 7"
+    std::string adbState;        // e.g., "device", "offline", "unauthorized"
 };
 
 struct DeviceEvent {
-    std::string type;         // semantic event type, e.g. "added", "removed", "updated"
-    std::string uid;          // device UID concerned by the event
-    std::string displayName;  // optional, may mirror DeviceInfo
-    bool online{false};
+    enum class Kind { Attach, Detach, InfoUpdated };
+    Kind kind{Kind::InfoUpdated};
+    DeviceInfo info; // current info snapshot for the device related to the event
 };
-

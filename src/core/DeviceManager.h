@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 #include "core/DeviceModel.h"
 
@@ -18,7 +19,7 @@ public:
     // Return a copy of the current device list.
     Snapshot snapshot() const;
 
-    // Subscribe to device events (minimal stub for now). Returns token index.
+    // Subscribe to device events (thread-safe). Returns token index.
     int subscribe(Subscriber cb);
     void unsubscribe(int token);
 
@@ -26,8 +27,11 @@ public:
     void addOrUpdateDevice(const DeviceInfo& info);
     void removeDevice(const std::string& uid);
 
+    // Provider pushes an event into manager; manager updates its store and notifies subscribers.
+    void onEvent(const DeviceEvent& evt);
+
 private:
+    mutable std::mutex mtx_;
     std::unordered_map<std::string, DeviceInfo> devices_; // uid -> info
     std::vector<Subscriber> subscribers_;                 // simple subscriber list
 };
-
