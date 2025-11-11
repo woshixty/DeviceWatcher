@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <chrono>
 
 namespace Utils {
 
@@ -13,5 +14,10 @@ bool isLinux();
 bool isMac();
 std::string osName();
 
-} // namespace Utils
+// Monotonic clock now (for debouncing, timeouts)
+std::chrono::steady_clock::time_point now();
 
+// Format a system_clock time_point to HH:MM:SS
+std::string formatTimeHHMMSS(const std::chrono::system_clock::time_point& tp);
+
+} // namespace Utils

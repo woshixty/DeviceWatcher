@@ -55,5 +55,21 @@ std::string osName() {
     return "Unknown";
 }
 
-} // namespace Utils
+std::chrono::steady_clock::time_point now() {
+    return std::chrono::steady_clock::now();
+}
 
+std::string formatTimeHHMMSS(const std::chrono::system_clock::time_point& tp) {
+    std::time_t tt = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm{};
+#if defined(_WIN32)
+    localtime_s(&tm, &tt);
+#else
+    localtime_r(&tt, &tm);
+#endif
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%H:%M:%S");
+    return oss.str();
+}
+
+} // namespace Utils

@@ -5,6 +5,9 @@
 #include <unordered_map>
 #include <vector>
 #include <mutex>
+#include <queue>
+#include <condition_variable>
+#include <chrono>
 
 #include "core/DeviceModel.h"
 
@@ -13,8 +16,8 @@ public:
     using Snapshot = std::vector<DeviceInfo>;
     using Subscriber = std::function<void(const DeviceEvent&)>;
 
-    DeviceManager() = default;
-    ~DeviceManager() = default;
+    DeviceManager();
+    ~DeviceManager();
 
     // Return a copy of the current device list.
     Snapshot snapshot() const;
@@ -31,7 +34,23 @@ public:
     void onEvent(const DeviceEvent& evt);
 
 private:
+    void workerLoop();
+    static void mergeInfo(DeviceInfo& dst, const DeviceInfo& src);
+
     mutable std::mutex mtx_;
     std::unordered_map<std::string, DeviceInfo> devices_; // uid -> info
     std::vector<Subscriber> subscribers_;                 // simple subscriber list
+
+    // Event queue + worker
+    std::queue<DeviceEvent> queue_;
+    std::condition_variable cv_;
+    std::thread worker_;
+    bool running_{true};
+
+    struct Debounced {
+        DeviceEvent::Kind kind;
+        DeviceInfo info; // latest info snapshot used for final event
+        std::chrono::steady_clock::time_point deadline;
+    };
+    std::unordered_map<std::string, Debounced> pendings_; // uid -> pending attach/detach
 };

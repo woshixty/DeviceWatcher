@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <chrono>
 
 #include <fmt/core.h>
 #include <spdlog/spdlog.h>
@@ -47,9 +48,8 @@ int main(int argc, char** argv) {
     DeviceManager manager;
     // Subscribe printer
     manager.subscribe([](const DeviceEvent& evt) {
-        std::string hhmmss;
-        auto ts = Utils::currentTimestamp();
-        if (ts.size() >= 19) hhmmss = ts.substr(11, 8); else hhmmss = ts;
+        const auto nowSys = std::chrono::system_clock::now();
+        std::string hhmmss = Utils::formatTimeHHMMSS(nowSys);
 
         auto kindToStr = [](DeviceEvent::Kind k) {
             switch (k) {
