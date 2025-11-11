@@ -4,6 +4,9 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
+#include <chrono>
+#include <vector>
 
 #include <asio.hpp>
 
@@ -31,6 +34,11 @@ private:
     static std::string readExact(asio::ip::tcp::socket& socket, std::size_t n);
     static std::string readLenBlock(asio::ip::tcp::socket& socket);
     static std::size_t parseHexLen4(const std::string& s);
+    static std::string readUntilEof(asio::ip::tcp::socket& socket, std::size_t maxBytes = 262144);
+    static void parseGetprop(const std::string& text, DeviceInfo& infoOut);
+
+    void scheduleEnrichIfNeeded(const DeviceInfo& newInfo, const DeviceInfo* oldInfo);
+    void enrichWorker(std::string serial);
 
     DeviceManager& manager_;
     std::thread worker_;
@@ -41,4 +49,10 @@ private:
     // ADB server endpoint (configurable via env)
     std::string host_ = "127.0.0.1";
     std::string port_ = "5037";
+
+    // Enrichment bookkeeping
+    std::mutex enrichMtx_;
+    std::unordered_set<std::string> enriching_;
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> lastEnrich_;
+    std::vector<std::thread> enrichThreads_;
 };

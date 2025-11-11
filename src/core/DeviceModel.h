@@ -18,6 +18,11 @@ struct DeviceInfo {
     // Android extras (optional for other platforms)
     std::string model;           // e.g., "Pixel 7"
     std::string adbState;        // e.g., "device", "offline", "unauthorized"
+
+    // Enrichment fields from getprop (Android)
+    std::string manufacturer;    // ro.product.manufacturer
+    std::string osVersion;       // ro.build.version.release
+    std::string abi;             // ro.product.cpu.abi
 };
 
 struct DeviceEvent {

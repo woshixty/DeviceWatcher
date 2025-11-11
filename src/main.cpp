@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
             switch (k) {
                 case DeviceEvent::Kind::Attach: return "ATTACH";
                 case DeviceEvent::Kind::Detach: return "DETACH";
-                case DeviceEvent::Kind::InfoUpdated: return "INFOUPDATED";
+                case DeviceEvent::Kind::InfoUpdated: return "INFO"; // shorter label
             }
             return "INFO";
         };
@@ -68,8 +68,10 @@ int main(int argc, char** argv) {
         };
 
         const auto& di = evt.info;
-        fmt::print("[{}] {} {} SN={} model={} state={}\n",
-                   hhmmss, kindToStr(evt.kind), typeToStr(di.type), di.uid, di.model, di.adbState);
+        // Print enriched fields when available
+        fmt::print("[{}] {:<7} {} SN={} manufacturer={} model={} os={} abi={} state={}\n",
+                   hhmmss, kindToStr(evt.kind), typeToStr(di.type), di.uid,
+                   di.manufacturer, di.model, di.osVersion, di.abi, di.adbState);
     });
 
     AndroidAdbProvider adb(manager);

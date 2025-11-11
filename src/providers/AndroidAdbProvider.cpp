@@ -5,6 +5,7 @@
 #include <vector>
 #include <sstream>
 #include <stdexcept>
+#include <regex>
 #include <system_error>
 
 #include <fmt/core.h>
@@ -64,6 +65,17 @@ void AndroidAdbProvider::stop() {
         }
     }
     if (worker_.joinable()) worker_.join();
+    // Join any enrichment threads that are still running (best effort)
+    {
+        std::lock_guard<std::mutex> lk(enrichMtx_);
+        for (auto& t : enrichThreads_) {
+            if (t.joinable()) {
+                try { t.join(); } catch (...) {}
+            }
+        }
+        enrichThreads_.clear();
+        enriching_.clear();
+    }
 }
 
 void AndroidAdbProvider::runLoop() {
@@ -166,6 +178,10 @@ void AndroidAdbProvider::runLoop() {
                         manager_.onEvent(evt);
                         ++attachCount;
                         spdlog::info("[ADB] ATTACH serial={} model={} state={}", info.uid, info.model, info.adbState);
+                        // Enrich if device is online
+                        if (info.online) {
+                            scheduleEnrichIfNeeded(info, nullptr);
+                        }
                     } else {
                         const DeviceInfo& old = it->second;
                         if (old.adbState != info.adbState || old.model != info.model || old.online != info.online) {
@@ -174,6 +190,10 @@ void AndroidAdbProvider::runLoop() {
                             ++updateCount;
                             spdlog::info("[ADB] INFOUPDATED serial={} model={} state={} (prev={})",
                                          info.uid, info.model, info.adbState, old.adbState);
+                            if (!old.online && info.online) {
+                                // transition to online
+                                scheduleEnrichIfNeeded(info, &old);
+                            }
                         }
                     }
                 }
@@ -279,4 +299,131 @@ std::string AndroidAdbProvider::readLenBlock(asio::ip::tcp::socket& socket) {
     std::size_t n = parseHexLen4(l4);
     if (n == 0) return std::string();
     return readExact(socket, n);
+}
+
+std::string AndroidAdbProvider::readUntilEof(asio::ip::tcp::socket& socket, std::size_t maxBytes) {
+    std::string out;
+    out.reserve(8192);
+    std::array<char, 4096> buf{};
+    std::error_code ec;
+    while (out.size() < maxBytes) {
+        size_t n = socket.read_some(asio::buffer(buf.data(), buf.size()), ec);
+        if (ec) {
+            if (ec == asio::error::eof) break;
+            // On Windows when peer closes, may also get connection_reset; treat as EOF
+            if (
+#ifdef _WIN32
+                ec.value() == 10054 || // WSAECONNRESET
+#endif
+                false) {
+                break;
+            }
+            throw std::system_error(ec);
+        }
+        out.append(buf.data(), n);
+    }
+    return out;
+}
+
+void AndroidAdbProvider::parseGetprop(const std::string& text, DeviceInfo& infoOut) {
+    // Lines: [key]: [value]
+    std::istringstream iss(text);
+    std::string line;
+    auto trim = [](std::string s) {
+        size_t i=0,j=s.size();
+        while (i<j && (unsigned char)s[i]<=32) ++i;
+        while (j>i && (unsigned char)s[j-1]<=32) --j;
+        return s.substr(i, j-i);
+    };
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back()=='\r') line.pop_back();
+        if (line.empty()) continue;
+        // fast parse
+        if (line.front()=='[') {
+            auto rb1 = line.find(']');
+            auto lb2 = line.find('[', rb1 != std::string::npos ? rb1 : 0);
+            auto rb2 = line.find(']', lb2 != std::string::npos ? lb2 : 0);
+            if (rb1!=std::string::npos && lb2!=std::string::npos && rb2!=std::string::npos) {
+                std::string key = line.substr(1, rb1-1);
+                std::string val = line.substr(lb2+1, rb2-lb2-1);
+                key = trim(key);
+                val = trim(val);
+                if (key == "ro.product.manufacturer") infoOut.manufacturer = val;
+                else if (key == "ro.product.model") infoOut.model = val;
+                else if (key == "ro.build.version.release") infoOut.osVersion = val;
+                else if (key == "ro.product.cpu.abi") infoOut.abi = val;
+            }
+        }
+    }
+    // displayName enhancement
+    if (!infoOut.model.empty()) {
+        infoOut.displayName = infoOut.manufacturer.empty() ? infoOut.model : (infoOut.manufacturer + " " + infoOut.model);
+        infoOut.displayName += " (" + infoOut.uid + ")";
+    }
+}
+
+void AndroidAdbProvider::scheduleEnrichIfNeeded(const DeviceInfo& newInfo, const DeviceInfo* oldInfo) {
+    if (!running_) return;
+    const auto now = std::chrono::steady_clock::now();
+    const std::chrono::seconds throttle(30);
+    {
+        std::lock_guard<std::mutex> lk(enrichMtx_);
+        auto itlast = lastEnrich_.find(newInfo.uid);
+        if (itlast != lastEnrich_.end() && now - itlast->second < throttle) {
+            spdlog::debug("[ADB] enrich skip (throttle) serial={}", newInfo.uid);
+            return;
+        }
+        if (enriching_.count(newInfo.uid)) {
+            spdlog::debug("[ADB] enrich skip (in-progress) serial={}", newInfo.uid);
+            return;
+        }
+        enriching_.insert(newInfo.uid);
+    }
+
+    spdlog::info("[ADB] enrich scheduling for serial={} (device)", newInfo.uid);
+    enrichThreads_.emplace_back([this, serial = newInfo.uid]() { enrichWorker(serial); });
+}
+
+void AndroidAdbProvider::enrichWorker(std::string serial) {
+    // Short-lived connection to run host:transport:<serial> then shell:getprop
+    try {
+        asio::io_context io;
+        tcp::resolver resolver(io);
+        auto endpoints = resolver.resolve(host_, port_);
+        tcp::socket sock(io);
+        asio::connect(sock, endpoints);
+        spdlog::debug("[ADB] enrich connected for serial={}", serial);
+
+        // Select transport
+        sendAdbRequest(sock, fmt::format("host:transport:{}", serial));
+        // Run shell:getprop
+        sendAdbRequest(sock, "shell:getprop");
+        std::string out = readUntilEof(sock);
+        spdlog::debug("[ADB] enrich getprop bytes={} for serial={}", out.size(), serial);
+
+        DeviceInfo info;
+        info.type = Type::Android;
+        info.uid = serial;
+        info.online = true;
+        info.adbState = "device";
+        parseGetprop(out, info);
+
+        DeviceEvent evt{ DeviceEvent::Kind::InfoUpdated, info };
+        manager_.onEvent(evt);
+        spdlog::info("[ADB] enrich result serial={} manufacturer={} model={} os={} abi={}",
+                     serial, info.manufacturer, info.model, info.osVersion, info.abi);
+    } catch (const std::exception& ex) {
+        std::string msg = ex.what();
+        for (char& ch : msg) {
+            if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126) ch = '?';
+        }
+        spdlog::warn("[ADB] enrich failed serial={} msg={}", serial, msg);
+    }
+
+    // mark done
+    {
+        std::lock_guard<std::mutex> lk(enrichMtx_);
+        enriching_.erase(serial);
+        lastEnrich_[serial] = std::chrono::steady_clock::now();
+    }
 }
