@@ -41,6 +41,7 @@ find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
+find_package(Threads REQUIRED)
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
@@ -48,6 +49,7 @@ target_link_libraries(${PROJECT_NAME}
         spdlog::spdlog
         nlohmann_json::nlohmann_json
         asio::asio
+        Threads::Threads
 )
 
 # Organize sources in IDEs
@@ -69,4 +71,3 @@ source_group(TREE ${SRC_DIR} FILES
     ${SRC_DIR}/ui/CliMenu.cpp
     ${SRC_DIR}/ui/CliMenu.h
 )
-
