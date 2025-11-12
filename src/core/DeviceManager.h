@@ -8,6 +8,7 @@
 #include <queue>
 #include <condition_variable>
 #include <chrono>
+#include <optional>
 
 #include "core/DeviceModel.h"
 
@@ -21,6 +22,8 @@ public:
 
     // Return a copy of the current device list.
     Snapshot snapshot() const;
+    // Return onlineSince timestamp if device is currently known online.
+    std::optional<std::chrono::system_clock::time_point> onlineSince(const std::string& uid) const;
 
     // Subscribe to device events (thread-safe). Returns token index.
     int subscribe(Subscriber cb);
@@ -40,6 +43,7 @@ private:
     mutable std::mutex mtx_;
     std::unordered_map<std::string, DeviceInfo> devices_; // uid -> info
     std::vector<Subscriber> subscribers_;                 // simple subscriber list
+    std::unordered_map<std::string, std::chrono::system_clock::time_point> onlineSince_; // uid -> since
 
     // Event queue + worker
     std::queue<DeviceEvent> queue_;

@@ -46,8 +46,11 @@ int main(int argc, char** argv) {
     spdlog::info("DeviceWatcher version {}", DEVICEWATCHER_VERSION);
 
     DeviceManager manager;
+    // Real-time printing switch (default on)
+    bool realtimePrint = true;
     // Subscribe printer
-    manager.subscribe([](const DeviceEvent& evt) {
+    manager.subscribe([&](const DeviceEvent& evt) {
+        if (!realtimePrint) return; // process but don't print
         const auto nowSys = std::chrono::system_clock::now();
         std::string hhmmss = Utils::formatTimeHHMMSS(nowSys);
 
@@ -75,8 +78,8 @@ int main(int argc, char** argv) {
     });
 
     AndroidAdbProvider adb(manager);
-    // Auto-start Android watcher to ensure events print without menu interaction
+    // Auto-start Android watcher; printing controlled via menu
     adb.start();
-    CliMenu menu(manager, adb, true);
+    CliMenu menu(manager, realtimePrint);
     return menu.run();
 }

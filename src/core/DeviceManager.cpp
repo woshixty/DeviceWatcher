@@ -29,6 +29,13 @@ DeviceManager::Snapshot DeviceManager::snapshot() const {
     return list;
 }
 
+std::optional<std::chrono::system_clock::time_point> DeviceManager::onlineSince(const std::string& uid) const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    auto it = onlineSince_.find(uid);
+    if (it == onlineSince_.end()) return std::nullopt;
+    return it->second;
+}
+
 int DeviceManager::subscribe(Subscriber cb) {
     std::lock_guard<std::mutex> lock(mtx_);
     subscribers_.push_back(std::move(cb));
@@ -152,9 +159,14 @@ void DeviceManager::workerLoop() {
                 if (d.kind == DeviceEvent::Kind::Detach) {
                     // remove device entry
                     devices_.erase(uid);
+                    onlineSince_.erase(uid);
                 } else {
                     // ensure device is online
                     devices_[uid].online = true;
+                    // set onlineSince if not set
+                    if (onlineSince_.find(uid) == onlineSince_.end()) {
+                        onlineSince_[uid] = std::chrono::system_clock::now();
+                    }
                 }
                 toSend.push_back(DeviceEvent{d.kind, d.info});
                 it = pendings_.erase(it);

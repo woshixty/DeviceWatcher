@@ -1,19 +1,21 @@
 #pragma once
 
 #include "core/DeviceManager.h"
-#include "providers/AndroidAdbProvider.h"
 
 class CliMenu {
 public:
-    CliMenu(DeviceManager& manager, AndroidAdbProvider& adb, bool initialAndroidRunning = false)
-        : manager_(manager), adb_(adb), adbRunning_(initialAndroidRunning) {}
+    CliMenu(DeviceManager& manager, bool& realtimePrintFlag)
+        : manager_(manager), realtimePrintFlag_(realtimePrintFlag) {}
 
     int run(); // returns exit code
 
 private:
-    void printMenu(bool adbRunning);
+    void printMenu(bool realtimeOn);
+    void listDevices();
+    void showDeviceDetails();
+    void exportJson();
+    void exportCsv();
 
     DeviceManager& manager_;
-    AndroidAdbProvider& adb_;
-    bool adbRunning_{false};
+    bool& realtimePrintFlag_;
 };
