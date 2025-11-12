@@ -19,6 +19,7 @@ add_executable(${PROJECT_NAME}
     ${SRC_DIR}/core/DeviceManager.cpp
     ${SRC_DIR}/core/EventBus.cpp
     ${SRC_DIR}/core/Utils.cpp
+    ${SRC_DIR}/core/Serialize.cpp
 
     ${SRC_DIR}/providers/AndroidAdbProvider.cpp
     ${SRC_DIR}/providers/IosUsbmuxProvider.cpp
@@ -62,6 +63,7 @@ source_group(TREE ${SRC_DIR} FILES
     ${SRC_DIR}/core/EventBus.h
     ${SRC_DIR}/core/Utils.cpp
     ${SRC_DIR}/core/Utils.h
+    ${SRC_DIR}/core/Serialize.h
     ${SRC_DIR}/providers/AndroidAdbProvider.cpp
     ${SRC_DIR}/providers/AndroidAdbProvider.h
     ${SRC_DIR}/providers/IosUsbmuxProvider.cpp
