@@ -44,6 +44,31 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
+# Optional: libimobiledevice/usbmuxd
+option(WITH_LIBIMOBILEDEVICE "Enable libimobiledevice/usbmuxd support" OFF)
+set(HAVE_LIBIMOBILEDEVICE OFF)
+if (WITH_LIBIMOBILEDEVICE)
+    # Try config-mode from vcpkg or system
+    find_package(libimobiledevice CONFIG QUIET)
+    if (libimobiledevice_FOUND)
+        message(STATUS "libimobiledevice found: enabling iOS support")
+        target_compile_definitions(${PROJECT_NAME} PRIVATE WITH_LIBIMOBILEDEVICE=1)
+        set(HAVE_LIBIMOBILEDEVICE ON)
+        target_link_libraries(${PROJECT_NAME} PRIVATE libimobiledevice::libimobiledevice)
+        # These are optional on some distros
+        find_package(libplist CONFIG QUIET)
+        if (libplist_FOUND)
+            target_link_libraries(${PROJECT_NAME} PRIVATE plist::plist)
+        endif()
+        find_package(usbmuxd CONFIG QUIET)
+        if (usbmuxd_FOUND)
+            target_link_libraries(${PROJECT_NAME} PRIVATE usbmuxd::usbmuxd)
+        endif()
+    else()
+        message(WARNING "WITH_LIBIMOBILEDEVICE=ON but libimobiledevice not found; building without iOS support")
+    endif()
+endif()
+
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         fmt::fmt

@@ -68,6 +68,7 @@ void DeviceManager::mergeInfo(DeviceInfo& dst, const DeviceInfo& src) {
     if (!src.uid.empty()) dst.uid = src.uid;
     if (!src.displayName.empty()) dst.displayName = src.displayName;
     dst.online = src.online;
+    if (!src.transport.empty()) dst.transport = src.transport;
     if (!src.model.empty()) dst.model = src.model;
     if (!src.adbState.empty()) dst.adbState = src.adbState;
     if (!src.manufacturer.empty()) dst.manufacturer = src.manufacturer;

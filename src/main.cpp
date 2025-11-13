@@ -11,6 +11,7 @@
 #include "ui/CliMenu.h"
 #include "core/DeviceManager.h"
 #include "providers/AndroidAdbProvider.h"
+#include "providers/IosUsbmuxProvider.h"
 #include "core/Utils.h"
 
 #ifndef DEVICEWATCHER_VERSION
@@ -80,6 +81,7 @@ int main(int argc, char** argv) {
     AndroidAdbProvider adb(manager);
     // Auto-start Android watcher; printing controlled via menu
     adb.start();
-    CliMenu menu(manager, realtimePrint);
+    IosUsbmuxProvider ios(manager);
+    CliMenu menu(manager, realtimePrint, ios);
     return menu.run();
 }

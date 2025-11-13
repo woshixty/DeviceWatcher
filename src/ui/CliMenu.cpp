@@ -29,6 +29,8 @@ void CliMenu::printMenu(bool realtimeOn) {
     std::cout << "[3] 查看设备详情（输入uid）\n";
     std::cout << "[4] 导出设备清单 JSON 到 ./out/devices.json\n";
     std::cout << "[5] 导出设备清单 CSV 到 ./out/devices.csv\n";
+    std::cout << "[6] " << (ios_.isRunning() ? "停止 iOS 监听" : "启动 iOS 监听")
+              << (ios_.isSupported() ? "" : "（未编译支持）") << "\n";
     std::cout << "[9] 退出\n";
 }
 
@@ -100,6 +102,20 @@ void CliMenu::exportCsv() {
     }
 }
 
+void CliMenu::toggleIos() {
+    if (!ios_.isSupported()) {
+        std::cout << "当前构建未启用 libimobiledevice/usbmuxd 支持（-DWITH_LIBIMOBILEDEVICE=ON）" << std::endl;
+        return;
+    }
+    if (ios_.isRunning()) {
+        ios_.stop();
+        std::cout << "iOS 监听已停止" << std::endl;
+    } else {
+        ios_.start();
+        std::cout << "iOS 监听已启动" << std::endl;
+    }
+}
+
 int CliMenu::run() {
     printMenu(realtimePrintFlag_);
     std::string cmd;
@@ -120,6 +136,8 @@ int CliMenu::run() {
             exportJson();
         } else if (cmd == "5") {
             exportCsv();
+        } else if (cmd == "6") {
+            toggleIos();
         } else {
             std::cout << "无效选项: " << cmd << std::endl;
         }

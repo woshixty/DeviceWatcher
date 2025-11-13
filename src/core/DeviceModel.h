@@ -14,6 +14,7 @@ struct DeviceInfo {
     std::string uid;             // unique identifier per device (e.g., serial)
     std::string displayName;     // user-friendly name
     bool online{false};          // online/offline state
+    std::string transport;       // e.g., "USB", "TCP" (iOS 默认 USB)
 
     // Android extras (optional for other platforms)
     std::string model;           // e.g., "Pixel 7"
