@@ -58,7 +58,32 @@ struct DeviceInfo {
 先安装/配置 vcpkg，并置好VCPKG_ROOT或用 -DCMAKE_TOOLCHAIN_FILE 指向 vcpkg toolchain
 ```
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows -DWITH_LIBIMOBILEDEVICE=ON
 cmake --build build --config Debug
+```
+
+```
+Windows 构建与运行
+
+  - 配置并生成：
+      - cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/
+        vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DWITH_LIBIMOBILEDEVICE=ON
+      - cmake --build build --config Debug
+  - 运行前设置 PATH（Debug 示例）：
+      - 把 build\\vcpkg_installed\\x64-windows\\debug\\bin 加到 PATH
+      - 或 Release：build\\vcpkg_installed\\x64-windows\\bin
+  - 先决条件：
+      - 安装 Apple Mobile Device Support（随 iTunes 或 Apple 官方安装包），否则无法与设备通信。
+  - 使用：
+      - 运行程序，菜单按 [6] 启动 iOS 监听；插拔设备应看到 ATTACH/DETACH，随后 INFO 里含 DeviceName/ProductType/
+        ProductVersion。
+
+  说明与可选项
+
+  - 仅在清单加 libimobiledevice 就够用；libplist、usbmuxd 会作为传递依赖一并拉取，且由 libimobiledevice::libimobiledevice 透
+    传链接。
+  - 若希望非交互/安装包运行，更稳妥做法是拷贝依赖 DLL 到可执行目录；需要的话我可以加一个 CMake POST_BUILD 步骤自动复制。
+  - Linux/macOS 可用 Homebrew/apt 安装同名包；若 config 模式找不到，可再加 pkg-config 回退（我也可以帮你补上）。
 ```
 
 ### 🚀 使用
