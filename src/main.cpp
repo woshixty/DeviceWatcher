@@ -12,6 +12,9 @@
 #include "core/DeviceManager.h"
 #include "providers/AndroidAdbProvider.h"
 #include "providers/IosUsbmuxProvider.h"
+#ifdef _WIN32
+#include "providers/UsbProvider.h"
+#endif
 #include "core/Utils.h"
 
 #ifndef DEVICEWATCHER_VERSION
@@ -81,6 +84,11 @@ int main(int argc, char** argv) {
     AndroidAdbProvider adb(manager);
     // Auto-start Android watcher; printing controlled via menu
     adb.start();
+#ifdef _WIN32
+    // Start Windows USB provider for VID/PID/path enrichment
+    UsbProvider usb(manager);
+    usb.start();
+#endif
     IosUsbmuxProvider ios(manager);
     CliMenu menu(manager, realtimePrint, ios);
     return menu.run();

@@ -24,6 +24,11 @@ struct DeviceInfo {
     std::string manufacturer;    // ro.product.manufacturer
     std::string osVersion;       // ro.build.version.release
     std::string abi;             // ro.product.cpu.abi
+
+    // USB enrichment (Windows UsbProvider)
+    uint16_t vid{0};            // USB vendor ID
+    uint16_t pid{0};            // USB product ID
+    std::string usbPath;        // device interface path / symlink
 };
 
 struct DeviceEvent {

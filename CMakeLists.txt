@@ -98,6 +98,11 @@ target_link_libraries(${PROJECT_NAME}
         Threads::Threads
 )
 
+# Windows: link SetupAPI and CfgMgr32 for USB provider
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE setupapi cfgmgr32)
+endif()
+
 # Organize sources in IDEs
 source_group(TREE ${SRC_DIR} FILES
     ${SRC_DIR}/main.cpp

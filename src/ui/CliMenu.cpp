@@ -79,6 +79,13 @@ void CliMenu::showDeviceDetails() {
     fmt::print("abi: {}\n", d.abi);
     fmt::print("adbState: {}\n", d.adbState);
     fmt::print("online: {}\n", d.online ? "true" : "false");
+    if (d.vid || d.pid) {
+        fmt::print("vid: 0x{:04x}\n", (unsigned)d.vid);
+        fmt::print("pid: 0x{:04x}\n", (unsigned)d.pid);
+    }
+    if (!d.usbPath.empty()) {
+        fmt::print("usbPath: {}\n", d.usbPath);
+    }
     fmt::print("onlineSince: {}\n", sinceStr);
 }
 
