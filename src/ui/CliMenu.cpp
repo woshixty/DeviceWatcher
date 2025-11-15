@@ -1,3 +1,4 @@
+// CLI menu: now also configures external notifications (webhook / local TCP)
 #include "ui/CliMenu.h"
 
 #include <iostream>
@@ -31,6 +32,7 @@ void CliMenu::printMenu(bool realtimeOn) {
     std::cout << "[5] 导出设备清单 CSV 到 ./out/devices.csv\n";
     std::cout << "[6] " << (ios_.isRunning() ? "停止 iOS 监听" : "启动 iOS 监听")
               << (ios_.isSupported() ? "" : "（未编译支持）") << "\n";
+    std::cout << "[7] 设置外部通知（webhook / 本地TCP）\n";
     std::cout << "[9] 退出\n";
 }
 
@@ -123,6 +125,38 @@ void CliMenu::toggleIos() {
     }
 }
 
+void CliMenu::configureNotifications() {
+    auto cfg = notifier_.currentSettings();
+    std::cout << "\n=== 外部通知设置 ===\n";
+    std::cout << "当前 webhookUrl: "
+              << (cfg.webhookUrl.empty() ? "<空>" : cfg.webhookUrl) << "\n";
+    std::cout << "当前 localTcpEndpoint: "
+              << (cfg.localTcpEndpoint.empty() ? "<空>" : cfg.localTcpEndpoint) << "\n";
+
+    std::cout << "输入新的 webhookUrl (直接回车保持不变, 输入 - 清空): ";
+    std::string url;
+    std::getline(std::cin >> std::ws, url);
+    if (!url.empty()) {
+        if (url == "-") url.clear();
+        notifier_.setWebhookUrl(url);
+    }
+
+    std::cout << "输入新的本地 TCP 端点 (如 127.0.0.1:9009, 直接回车保持不变, 输入 - 清空): ";
+    std::string ep;
+    std::getline(std::cin, ep);
+    if (!ep.empty()) {
+        if (ep == "-") ep.clear();
+        notifier_.setLocalTcpEndpoint(ep);
+    }
+
+    cfg = notifier_.currentSettings();
+    std::cout << "已更新外部通知: webhookUrl="
+              << (cfg.webhookUrl.empty() ? "<空>" : cfg.webhookUrl)
+              << " localTcpEndpoint="
+              << (cfg.localTcpEndpoint.empty() ? "<空>" : cfg.localTcpEndpoint)
+              << "\n";
+}
+
 int CliMenu::run() {
     printMenu(realtimePrintFlag_);
     std::string cmd;
@@ -145,6 +179,8 @@ int CliMenu::run() {
             exportCsv();
         } else if (cmd == "6") {
             toggleIos();
+        } else if (cmd == "7") {
+            configureNotifications();
         } else {
             std::cout << "无效选项: " << cmd << std::endl;
         }

@@ -17,6 +17,7 @@
 
 #include "ui/CliMenu.h"
 #include "core/DeviceManager.h"
+#include "core/ExternalNotifier.h"
 #include "providers/AndroidAdbProvider.h"
 #include "providers/IosUsbmuxProvider.h"
 #ifdef _WIN32
@@ -62,6 +63,7 @@ int main(int argc, char** argv) {
     spdlog::info("DeviceWatcher version {}", DEVICEWATCHER_VERSION);
 
     DeviceManager manager;
+    ExternalNotifier notifier(manager);
     // Real-time printing switch (default on)
     bool realtimePrint = true;
     // Subscribe printer
@@ -102,6 +104,6 @@ int main(int argc, char** argv) {
     usb.start();
 #endif
     IosUsbmuxProvider ios(manager);
-    CliMenu menu(manager, realtimePrint, ios);
+    CliMenu menu(manager, realtimePrint, ios, notifier);
     return menu.run();
 }

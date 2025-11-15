@@ -20,4 +20,7 @@ std::chrono::steady_clock::time_point now();
 // Format a system_clock time_point to HH:MM:SS
 std::string formatTimeHHMMSS(const std::chrono::system_clock::time_point& tp);
 
+// Format a system_clock time_point to ISO8601 local time, e.g. 2025-11-09T22:07:02+08:00
+std::string formatTimeISO8601(const std::chrono::system_clock::time_point& tp);
+
 } // namespace Utils
