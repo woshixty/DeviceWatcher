@@ -56,9 +56,18 @@ struct DeviceInfo {
 建设中...
 
 先安装/配置 vcpkg，并置好VCPKG_ROOT或用 -DCMAKE_TOOLCHAIN_FILE 指向 vcpkg toolchain
+
+Linux
 ```
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows -DWITH_LIBIMOBILEDEVICE=ON
+cmake --build build --config Debug
+```
+
+Windows
+```
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake"
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows -DWITH_LIBIMOBILEDEVICE=ON
 cmake --build build --config Debug
 ```
 
