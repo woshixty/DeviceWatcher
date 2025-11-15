@@ -8,6 +8,10 @@
 #include <fmt/core.h>
 #include <spdlog/spdlog.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "ui/CliMenu.h"
 #include "core/DeviceManager.h"
 #include "providers/AndroidAdbProvider.h"
@@ -26,6 +30,11 @@ static void print_help(const char* argv0) {
 }
 
 int main(int argc, char** argv) {
+#ifdef _WIN32
+    // Ensure Windows console uses UTF-8 so Chinese output is not garbled.
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
     // Logging setup
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     const char* env = std::getenv("DW_LOG");
