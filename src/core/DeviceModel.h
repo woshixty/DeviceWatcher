@@ -25,6 +25,10 @@ struct DeviceInfo {
     std::string osVersion;       // ro.build.version.release
     std::string abi;             // ro.product.cpu.abi
 
+    // iOS-specific enrichment
+    std::string productType;     // e.g., "iPhone15,2"
+    std::string deviceName;      // e.g., "Xiety的 iPhone"
+
     // USB enrichment (Windows UsbProvider)
     uint16_t vid{0};            // USB vendor ID
     uint16_t pid{0};            // USB product ID

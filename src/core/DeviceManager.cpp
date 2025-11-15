@@ -74,6 +74,8 @@ void DeviceManager::mergeInfo(DeviceInfo& dst, const DeviceInfo& src) {
     if (!src.manufacturer.empty()) dst.manufacturer = src.manufacturer;
     if (!src.osVersion.empty()) dst.osVersion = src.osVersion;
     if (!src.abi.empty()) dst.abi = src.abi;
+    if (!src.productType.empty()) dst.productType = src.productType;
+    if (!src.deviceName.empty()) dst.deviceName = src.deviceName;
     if (src.vid) dst.vid = src.vid;
     if (src.pid) dst.pid = src.pid;
     if (!src.usbPath.empty()) dst.usbPath = src.usbPath;

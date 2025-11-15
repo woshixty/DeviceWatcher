@@ -106,9 +106,12 @@ void IosUsbmuxProvider::enrichInfo(const std::string& udid) {
     info.transport = "USB";
     info.online = true;
     info.manufacturer = "Apple";
-    info.displayName = getStr(nullptr, "DeviceName");
-    info.model = getStr(nullptr, "ProductType");
+    info.deviceName = getStr(nullptr, "DeviceName");
+    info.productType = getStr(nullptr, "ProductType");
     info.osVersion = getStr(nullptr, "ProductVersion");
+    // Backwards-compatible: keep displayName/model populated as before
+    info.displayName = info.deviceName;
+    info.model = info.productType;
     if (!info.displayName.empty()) {
         info.displayName += " (" + udid + ")";
     }
