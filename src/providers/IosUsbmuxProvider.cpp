@@ -65,13 +65,23 @@ void IosUsbmuxProvider::emitDetach(const std::string& udid) {
 void IosUsbmuxProvider::enrichInfo(const std::string& udid) {
 #if WITH_LIBIMOBILEDEVICE
     idevice_t dev = nullptr;
-    if (idevice_new(&dev, udid.c_str()) != IDEVICE_E_SUCCESS || !dev) {
-        spdlog::warn("[iOS] idevice_new failed for {}", udid);
+    idevice_error_t derr = idevice_new(&dev, udid.c_str());
+    if (derr != IDEVICE_E_SUCCESS || !dev) {
+        spdlog::warn(
+            "[iOS] idevice_new failed for {} err={} (提示: 请确保已安装并运行 iTunes/Apple Mobile Device Support, 设备已解锁并在弹窗中选择信任)",
+            udid,
+            static_cast<int>(derr)
+        );
         return;
     }
     lockdownd_client_t client = nullptr;
-    if (lockdownd_client_new_with_handshake(dev, &client, "DeviceWatcher") != LOCKDOWN_E_SUCCESS) {
-        spdlog::warn("[iOS] lockdown handshake failed for {}", udid);
+    lockdownd_error_t lerr = lockdownd_client_new_with_handshake(dev, &client, "DeviceWatcher");
+    if (lerr != LOCKDOWN_E_SUCCESS) {
+        spdlog::warn(
+            "[iOS] lockdown handshake failed for {} err={} (提示: 请在 iPhone 上点击信任此电脑, 或在 iTunes 中打开设备完成配对)",
+            udid,
+            static_cast<int>(lerr)
+        );
         idevice_free(dev);
         return;
     }
