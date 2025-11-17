@@ -6,14 +6,15 @@
 <p align="left"> <a href="#"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue"></a> <a href="#"><img alt="lang" src="https://img.shields.io/badge/C%2B%2B-17-4c8"></a> <a href="#"><img alt="platform" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-999"></a> <a href="#"><img alt="build" src="https://img.shields.io/badge/build-CMake%20%7C%20vcpkg-success"></a> </p>
 
 ### ✨ 功能（进行中✅）
-- ⏳ ADB 直连（host:track-devices-l）监听 Android 上下线与基础信息
-- ⏳ 统一设备模型与事件总线：Attach / InfoUpdated / Detach
-- ⏳ CLI 菜单：实时监视、列表、详情、JSON/CSV 导出
-- ⏳（开发中）iOS 监听（libimobiledevice/usbmuxd）
-- ⏳ 去抖动与多源信息合流（ADB / iOS / USB 底层）
-- ⏳ Webhook / 本地 TCP 推送（NDJSON）
-- ⏳ Windows USB 底层信息（VID/PID/口径路径）
+- ✅ ADB 直连（host:track-devices-l）监听 Android 上下线与基础信息
+- ✅ 统一设备模型与事件总线：Attach / InfoUpdated / Detach
+- ✅ CLI 菜单：实时监视、列表、详情、JSON/CSV 导出
+- ✅ iOS 监听（libimobiledevice/usbmuxd）
+- ✅ 去抖动与多源信息合流（ADB / iOS / USB 底层）
+- ✅ Webhook / 本地 TCP 推送（NDJSON）
+- ✅ Windows USB 底层信息（VID/PID/口径路径）
 - ⏳ TUI（FTXUI）仪表盘、规则引擎、Prometheus Exporter
+- ⏳ iPhone备份与还原
 
 ### 🧱 架构概览
 
