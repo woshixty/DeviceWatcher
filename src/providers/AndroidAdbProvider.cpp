@@ -95,18 +95,33 @@ void AndroidAdbProvider::runLoop() {
             std::error_code ec;
             asio::connect(*currentSocket_, endpoints, ec);
             if (ec) {
-                throw std::runtime_error(std::string("ADB connect failed: ") + ec.message());
-            }
-            spdlog::info("[ADB] connected to {}:{}", host_, port_);
+                // Connection failure is expected when ADB server is not running; log and detach known devices.
+                std::string msg = ec.message();
+                for (char& ch : msg) {
+                    if (static_cast<unsigned char>(ch) < 32 || static_cast<unsigned char>(ch) > 126) ch = '?';
+                }
+                spdlog::warn("[ADB] connect failed to {}:{} ec={} msg={}", host_, port_, ec.value(), msg);
+                if (!known.empty()) {
+                    spdlog::info("[ADB] connection failed; detaching {} known device(s)", known.size());
+                    for (auto& kv : known) {
+                        DeviceInfo info = kv.second;
+                        info.online = false;
+                        DeviceEvent evt{ DeviceEvent::Kind::Detach, info };
+                        manager_.onEvent(evt);
+                    }
+                    known.clear();
+                }
+            } else {
+                spdlog::info("[ADB] connected to {}:{}", host_, port_);
 
-            // Send request and process streaming updates
-            sendAdbRequest(*currentSocket_, "host:track-devices-l");
-            spdlog::info("[ADB] sent track-devices-l request and received OKAY");
+                // Send request and process streaming updates
+                sendAdbRequest(*currentSocket_, "host:track-devices-l");
+                spdlog::info("[ADB] sent track-devices-l request and received OKAY");
 
-            // On successful connect, reset known to ensure correct ATTACH notifications
-            known.clear();
+                // On successful connect, reset known to ensure correct ATTACH notifications
+                known.clear();
 
-            for (;;) {
+                for (;;) {
                 if (!running_) break;
                 std::string block = readLenBlock(*currentSocket_);
                 spdlog::debug("[ADB] received block size={} bytes", block.size());
@@ -164,54 +179,55 @@ void AndroidAdbProvider::runLoop() {
                     spdlog::debug("[ADB] line parsed: serial={} state={} model={} product={} device={} transport_id={}",
                                   serial, state, model, product, device, transportId);
                 }
-                spdlog::info("[ADB] parsed {} device line(s)", parsedLines);
+                    spdlog::info("[ADB] parsed {} device line(s)", parsedLines);
 
-                // Diff known vs fresh
-                // Attach: in fresh, not in known
-                int attachCount = 0, updateCount = 0, detachCount = 0;
-                for (const auto& kv : fresh) {
-                    const auto& serial = kv.first;
-                    const auto& info = kv.second;
-                    auto it = known.find(serial);
-                    if (it == known.end()) {
-                        DeviceEvent evt{ DeviceEvent::Kind::Attach, info };
-                        manager_.onEvent(evt);
-                        ++attachCount;
-                        spdlog::info("[ADB] ATTACH serial={} model={} state={}", info.uid, info.model, info.adbState);
-                        // Enrich if device is online
-                        if (info.online) {
-                            scheduleEnrichIfNeeded(info, nullptr);
-                        }
-                    } else {
-                        const DeviceInfo& old = it->second;
-                        if (old.adbState != info.adbState || old.model != info.model || old.online != info.online) {
-                            DeviceEvent evt{ DeviceEvent::Kind::InfoUpdated, info };
+                    // Diff known vs fresh
+                    // Attach: in fresh, not in known
+                    int attachCount = 0, updateCount = 0, detachCount = 0;
+                    for (const auto& kv : fresh) {
+                        const auto& serial = kv.first;
+                        const auto& info = kv.second;
+                        auto it = known.find(serial);
+                        if (it == known.end()) {
+                            DeviceEvent evt{ DeviceEvent::Kind::Attach, info };
                             manager_.onEvent(evt);
-                            ++updateCount;
-                            spdlog::info("[ADB] INFOUPDATED serial={} model={} state={} (prev={})",
-                                         info.uid, info.model, info.adbState, old.adbState);
-                            if (!old.online && info.online) {
-                                // transition to online
-                                scheduleEnrichIfNeeded(info, &old);
+                            ++attachCount;
+                            spdlog::info("[ADB] ATTACH serial={} model={} state={}", info.uid, info.model, info.adbState);
+                            // Enrich if device is online
+                            if (info.online) {
+                                scheduleEnrichIfNeeded(info, nullptr);
+                            }
+                        } else {
+                            const DeviceInfo& old = it->second;
+                            if (old.adbState != info.adbState || old.model != info.model || old.online != info.online) {
+                                DeviceEvent evt{ DeviceEvent::Kind::InfoUpdated, info };
+                                manager_.onEvent(evt);
+                                ++updateCount;
+                                spdlog::info("[ADB] INFOUPDATED serial={} model={} state={} (prev={})",
+                                             info.uid, info.model, info.adbState, old.adbState);
+                                if (!old.online && info.online) {
+                                    // transition to online
+                                    scheduleEnrichIfNeeded(info, &old);
+                                }
                             }
                         }
                     }
-                }
-                // Detach: in known, not in fresh
-                for (const auto& kv : known) {
-                    const auto& serial = kv.first;
-                    if (fresh.find(serial) == fresh.end()) {
-                        DeviceInfo info = kv.second;
-                        info.online = false;
-                        DeviceEvent evt{ DeviceEvent::Kind::Detach, info };
-                        manager_.onEvent(evt);
-                        ++detachCount;
-                        spdlog::info("[ADB] DETACH serial={} model={} state={}", info.uid, info.model, info.adbState);
+                    // Detach: in known, not in fresh
+                    for (const auto& kv : known) {
+                        const auto& serial = kv.first;
+                        if (fresh.find(serial) == fresh.end()) {
+                            DeviceInfo info = kv.second;
+                            info.online = false;
+                            DeviceEvent evt{ DeviceEvent::Kind::Detach, info };
+                            manager_.onEvent(evt);
+                            ++detachCount;
+                            spdlog::info("[ADB] DETACH serial={} model={} state={}", info.uid, info.model, info.adbState);
+                        }
                     }
-                }
-                spdlog::info("[ADB] diff result: attach={} update={} detach={}", attachCount, updateCount, detachCount);
+                    spdlog::info("[ADB] diff result: attach={} update={} detach={}", attachCount, updateCount, detachCount);
 
-                known.swap(fresh);
+                    known.swap(fresh);
+                }
             }
         } catch (const std::system_error& se) {
             // System-level error (e.g., read canceled on shutdown, network errors)
