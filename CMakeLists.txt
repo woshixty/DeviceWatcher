@@ -21,6 +21,7 @@ add_executable(${PROJECT_NAME}
     ${SRC_DIR}/core/Utils.cpp
     ${SRC_DIR}/core/Serialize.cpp
     ${SRC_DIR}/core/ExternalNotifier.cpp
+    ${SRC_DIR}/core/IosBackupService.cpp
 
     ${SRC_DIR}/providers/AndroidAdbProvider.cpp
     ${SRC_DIR}/providers/IosUsbmuxProvider.cpp
@@ -117,6 +118,8 @@ source_group(TREE ${SRC_DIR} FILES
     ${SRC_DIR}/core/Serialize.h
     ${SRC_DIR}/core/ExternalNotifier.cpp
     ${SRC_DIR}/core/ExternalNotifier.h
+    ${SRC_DIR}/core/IosBackupService.cpp
+    ${SRC_DIR}/core/IosBackupService.h
     ${SRC_DIR}/providers/AndroidAdbProvider.cpp
     ${SRC_DIR}/providers/AndroidAdbProvider.h
     ${SRC_DIR}/providers/IosUsbmuxProvider.cpp

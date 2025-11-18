@@ -12,6 +12,7 @@
 #include "core/Utils.h"
 #include "core/DeviceModel.h"
 #include "core/Serialize.h"
+#include "core/IosBackupService.h"
 
 using std::string;
 
@@ -33,6 +34,7 @@ void CliMenu::printMenu(bool realtimeOn) {
     std::cout << "[6] " << (ios_.isRunning() ? "停止 iOS 监听" : "启动 iOS 监听")
               << (ios_.isSupported() ? "" : "（未编译支持）") << "\n";
     std::cout << "[7] 设置外部通知（webhook / 本地TCP）\n";
+    std::cout << "[B] 测试 iOS 设备连接\n";
     std::cout << "[9] 退出\n";
 }
 
@@ -157,6 +159,27 @@ void CliMenu::configureNotifications() {
               << "\n";
 }
 
+void CliMenu::testIosConnection() {
+    std::cout << "请输入 iOS 设备 UDID: ";
+    std::string udid;
+    if (!(std::cin >> udid)) return;
+
+    IosBackupService svc;
+    DeviceInfo info;
+    std::string err;
+    if (!svc.TestConnection(udid, &info, err)) {
+        std::cout << "测试连接失败: " << err << std::endl;
+        return;
+    }
+
+    std::cout << "\n=== iOS 连接测试成功 ===\n";
+    fmt::print("uid: {}\n", info.uid);
+    fmt::print("deviceName: {}\n", info.deviceName);
+    fmt::print("productType: {}\n", info.productType);
+    fmt::print("osVersion: {}\n", info.osVersion);
+    fmt::print("manufacturer: {}\n", info.manufacturer);
+}
+
 int CliMenu::run() {
     printMenu(realtimePrintFlag_);
     std::string cmd;
@@ -181,6 +204,8 @@ int CliMenu::run() {
             toggleIos();
         } else if (cmd == "7") {
             configureNotifications();
+        } else if (cmd == "B" || cmd == "b") {
+            testIosConnection();
         } else {
             std::cout << "无效选项: " << cmd << std::endl;
         }

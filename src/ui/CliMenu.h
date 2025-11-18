@@ -19,6 +19,7 @@ private:
     void exportCsv();
     void toggleIos();
     void configureNotifications();
+    void testIosConnection();
 
     DeviceManager& manager_;
     bool& realtimePrintFlag_;
