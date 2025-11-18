@@ -35,6 +35,7 @@ void CliMenu::printMenu(bool realtimeOn) {
               << (ios_.isSupported() ? "" : "（未编译支持）") << "\n";
     std::cout << "[7] 设置外部通知（webhook / 本地TCP）\n";
     std::cout << "[B] 测试 iOS 设备连接\n";
+    std::cout << "[P] iOS 备份\n";
     std::cout << "[9] 退出\n";
 }
 
@@ -180,6 +181,80 @@ void CliMenu::testIosConnection() {
     fmt::print("manufacturer: {}\n", info.manufacturer);
 }
 
+void CliMenu::iosBackup() {
+    // 1. 收集当前在线的 iOS 设备
+    auto all = manager_.snapshot();
+    std::vector<DeviceInfo> iosList;
+    for (const auto& d : all) {
+        if (d.type == Type::iOS && d.online) {
+            iosList.push_back(d);
+        }
+    }
+    if (iosList.empty()) {
+        std::cout << "当前没有在线的 iOS 设备" << std::endl;
+        return;
+    }
+
+    // 2. 展示设备列表
+    std::cout << "\n=== 可用的 iOS 设备 ===\n";
+    for (size_t i = 0; i < iosList.size(); ++i) {
+        const auto& d = iosList[i];
+        fmt::print("[{}] uid={} name={} type={} os={}\n",
+                   i + 1,
+                   d.uid,
+                   d.displayName.empty() ? d.deviceName : d.displayName,
+                   d.productType.empty() ? d.model : d.productType,
+                   d.osVersion);
+    }
+
+    // 3. 选择设备（编号或直接输入 UDID）
+    std::cout << "请选择设备编号或直接输入 UDID（回车取消）: ";
+    std::string sel;
+    std::getline(std::cin >> std::ws, sel);
+    if (sel.empty()) return;
+
+    std::string udid;
+    bool isIndex = !sel.empty() && std::all_of(sel.begin(), sel.end(), ::isdigit);
+    if (isIndex) {
+        size_t idx = std::stoul(sel);
+        if (idx == 0 || idx > iosList.size()) {
+            std::cout << "无效编号: " << sel << std::endl;
+            return;
+        }
+        udid = iosList[idx - 1].uid;
+    } else {
+        udid = sel;
+    }
+
+    // 4. 输入备份目录
+    std::cout << "请输入备份目录路径（例如 D:\\Backups\\iPhone_2025_11_15）: ";
+    std::string backupDir;
+    std::getline(std::cin, backupDir);
+    if (backupDir.empty()) {
+        std::cout << "备份目录不能为空" << std::endl;
+        return;
+    }
+
+    IosBackupService::BackupOptions opt;
+    opt.backupDir = backupDir;
+    opt.fullBackup = true;
+    opt.encrypt = false;
+
+    IosBackupService svc;
+
+    auto progressCb = [](double ratio, const std::string& msg) {
+        int pct = static_cast<int>(ratio * 100.0 + 0.5);
+        fmt::print("[iOS Backup] {:3d}% {}\n", pct, msg);
+    };
+
+    std::cout << "开始备份 iOS 设备: " << udid << std::endl;
+    auto result = svc.PerformBackup(udid, opt, progressCb);
+
+    fmt::print("备份结果: code={} message={}\n",
+               static_cast<int>(result.code),
+               result.message);
+}
+
 int CliMenu::run() {
     printMenu(realtimePrintFlag_);
     std::string cmd;
@@ -206,6 +281,8 @@ int CliMenu::run() {
             configureNotifications();
         } else if (cmd == "B" || cmd == "b") {
             testIosConnection();
+        } else if (cmd == "P" || cmd == "p") {
+            iosBackup();
         } else {
             std::cout << "无效选项: " << cmd << std::endl;
         }

@@ -20,6 +20,7 @@ private:
     void toggleIos();
     void configureNotifications();
     void testIosConnection();
+    void iosBackup();
 
     DeviceManager& manager_;
     bool& realtimePrintFlag_;
