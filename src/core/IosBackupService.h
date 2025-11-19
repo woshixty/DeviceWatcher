@@ -2,6 +2,9 @@
 
 #include <string>
 #include <functional>
+#include <vector>
+#include <cstdint>
+#include <ctime>
 
 #include "core/DeviceModel.h"
 
@@ -38,10 +41,30 @@ public:
         std::string message;      // 友好错误信息或成功描述
     };
 
+    // 备份记录（从备份目录扫描得到的摘要信息）
+    struct BackupRecord {
+        std::string path;          // 完整路径，例如 D:\\Backups\\<UDID>\\<timestamp>
+        std::string udid;
+        std::string deviceName;
+        std::string productType;
+        std::string iosVersion;
+        std::uint64_t totalBytes{0};
+        std::time_t  backupTime{0};
+    };
+
     // 执行整机备份（最小可用版本）。
-    // onProgress: 进度回调 [0.0,1.0]，消息如 "Preparing" / "Running idevicebackup2" / "Finished"。
+    // onProgress: 进度回调 [0.0,1.0]，消息如 "Preparing" / "Backup finished" 等。
     BackupResult PerformBackup(const std::string& udid,
                                const BackupOptions& opt,
                                std::function<void(double,const std::string&)> onProgress);
-};
 
+    // 扫描给定根目录下的所有 iOS 备份。
+    // 约定结构：root/<UDID>/<timestamp>/，其中包含 Info.plist 或 Manifest.plist。
+    // 任意一个备份损坏只会被跳过，并在 errMsg 中计数说明。
+    std::vector<BackupRecord> ListBackups(const std::string& rootDir, std::string& errMsg);
+
+    // 预留的还原接口（本阶段仅返回 Unsupported）。
+    BackupResult PerformRestore(const BackupRecord& record,
+                                const std::string& targetUdid,
+                                std::function<void(double,const std::string&)> onProgress);
+};

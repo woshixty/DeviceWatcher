@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <filesystem>
+#include <ctime>
 
 #include <fmt/core.h>
 #include <spdlog/spdlog.h>
@@ -36,6 +37,7 @@ void CliMenu::printMenu(bool realtimeOn) {
     std::cout << "[7] 设置外部通知（webhook / 本地TCP）\n";
     std::cout << "[B] 测试 iOS 设备连接\n";
     std::cout << "[P] iOS 备份\n";
+    std::cout << "[M] 管理 iOS 备份\n";
     std::cout << "[9] 退出\n";
 }
 
@@ -255,6 +257,161 @@ void CliMenu::iosBackup() {
                result.message);
 }
 
+void CliMenu::manageIosBackups() {
+    static std::string lastRootDir;
+
+    std::string rootDir;
+    std::cout << "请输入备份根目录（回车使用上次目录"
+              << (lastRootDir.empty() ? " / 当前为空" : (": " + lastRootDir)) << "）: ";
+    std::getline(std::cin >> std::ws, rootDir);
+    if (rootDir.empty()) {
+        if (lastRootDir.empty()) {
+            std::cout << "未指定备份根目录" << std::endl;
+            return;
+        }
+        rootDir = lastRootDir;
+    } else {
+        lastRootDir = rootDir;
+    }
+
+    IosBackupService svc;
+    std::string err;
+    auto records = svc.ListBackups(rootDir, err);
+    if (!err.empty()) {
+        std::cout << "扫描提示: " << err << std::endl;
+    }
+    if (records.empty()) {
+        std::cout << "在目录下未找到任何备份: " << rootDir << std::endl;
+        return;
+    }
+
+    auto formatTime = [](std::time_t t) -> std::string {
+        if (t <= 0) return "-";
+        char buf[32] = {0};
+        std::tm* tm = std::localtime(&t);
+        if (!tm) return "-";
+        if (std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm) == 0) {
+            return "-";
+        }
+        return std::string(buf);
+    };
+
+    auto formatSize = [](std::uint64_t bytes) -> std::string {
+        const char* units[] = { "B", "KB", "MB", "GB", "TB" };
+        double value = static_cast<double>(bytes);
+        int idx = 0;
+        while (value >= 1024.0 && idx < 4) {
+            value /= 1024.0;
+            ++idx;
+        }
+        return fmt::format("{:.1f}{}", value, units[idx]);
+    };
+
+    std::cout << "\n=== 发现的 iOS 备份 ===\n";
+    fmt::print("{:>3}  {:<20}  {:<24}  {:<10}  {:<19}  {:>12}\n",
+               "#", "设备名", "UDID", "iOS版本", "备份时间", "大小");
+    for (size_t i = 0; i < records.size(); ++i) {
+        const auto& r = records[i];
+        fmt::print("{:>3}  {:<20}  {:<24}  {:<10}  {:<19}  {:>12}\n",
+                   i + 1,
+                   r.deviceName.empty() ? "<未知设备>" : r.deviceName,
+                   r.udid,
+                   r.iosVersion.empty() ? "-" : r.iosVersion,
+                   formatTime(r.backupTime),
+                   formatSize(r.totalBytes));
+    }
+
+    std::cout << "请选择备份编号查看详情（回车返回）: ";
+    std::string sel;
+    std::getline(std::cin, sel);
+    if (sel.empty()) {
+        return;
+    }
+    if (!std::all_of(sel.begin(), sel.end(), ::isdigit)) {
+        std::cout << "无效编号: " << sel << std::endl;
+        return;
+    }
+
+    size_t idx = std::stoul(sel);
+    if (idx == 0 || idx > records.size()) {
+        std::cout << "编号超出范围: " << sel << std::endl;
+        return;
+    }
+
+    const auto& rec = records[idx - 1];
+    std::cout << "\n=== 备份详情 ===\n";
+    fmt::print("路径: {}\n", rec.path);
+    fmt::print("UDID: {}\n", rec.udid);
+    fmt::print("设备名: {}\n", rec.deviceName.empty() ? "<未知设备>" : rec.deviceName);
+    fmt::print("产品型号: {}\n", rec.productType.empty() ? "-" : rec.productType);
+    fmt::print("系统版本: {}\n", rec.iosVersion.empty() ? "-" : rec.iosVersion);
+    fmt::print("备份时间: {}\n", formatTime(rec.backupTime));
+    fmt::print("备份大小: {} ({:#} bytes)\n", formatSize(rec.totalBytes), rec.totalBytes);
+
+    std::cout << "\n[R] 还原到某台在线设备（占位，当前未实现）\n";
+    std::cout << "[回车] 返回菜单\n";
+    std::string choice;
+    std::getline(std::cin, choice);
+    if (choice != "R" && choice != "r") {
+        return;
+    }
+
+    // 选择目标在线 iOS 设备
+    auto all = manager_.snapshot();
+    std::vector<DeviceInfo> iosList;
+    for (const auto& d : all) {
+        if (d.type == Type::iOS && d.online) {
+            iosList.push_back(d);
+        }
+    }
+    if (iosList.empty()) {
+        std::cout << "当前没有在线的 iOS 设备用于还原" << std::endl;
+        return;
+    }
+
+    std::cout << "\n=== 在线 iOS 设备 ===\n";
+    for (size_t i = 0; i < iosList.size(); ++i) {
+        const auto& d = iosList[i];
+        fmt::print("[{}] uid={} name={} os={}\n",
+                   i + 1,
+                   d.uid,
+                   d.displayName.empty() ? d.deviceName : d.displayName,
+                   d.osVersion);
+    }
+
+    std::cout << "请选择目标设备编号或直接输入 UDID（回车取消）: ";
+    std::string devSel;
+    std::getline(std::cin, devSel);
+    if (devSel.empty()) {
+        return;
+    }
+
+    std::string targetUdid;
+    bool isIndex = !devSel.empty() && std::all_of(devSel.begin(), devSel.end(), ::isdigit);
+    if (isIndex) {
+        size_t didx = std::stoul(devSel);
+        if (didx == 0 || didx > iosList.size()) {
+            std::cout << "无效设备编号: " << devSel << std::endl;
+            return;
+        }
+        targetUdid = iosList[didx - 1].uid;
+    } else {
+        targetUdid = devSel;
+    }
+
+    auto progressCb = [](double ratio, const std::string& msg) {
+        int pct = static_cast<int>(ratio * 100.0 + 0.5);
+        fmt::print("[iOS Restore] {:3d}% {}\n", pct, msg);
+    };
+
+    std::cout << "准备将备份还原到设备: " << targetUdid << "（当前仅占位，不执行实际还原）" << std::endl;
+    auto result = svc.PerformRestore(rec, targetUdid, progressCb);
+
+    fmt::print("还原结果: code={} message={}\n",
+               static_cast<int>(result.code),
+               result.message);
+}
+
 int CliMenu::run() {
     printMenu(realtimePrintFlag_);
     std::string cmd;
@@ -283,6 +440,8 @@ int CliMenu::run() {
             testIosConnection();
         } else if (cmd == "P" || cmd == "p") {
             iosBackup();
+        } else if (cmd == "M" || cmd == "m") {
+            manageIosBackups();
         } else {
             std::cout << "无效选项: " << cmd << std::endl;
         }

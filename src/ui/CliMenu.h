@@ -21,6 +21,7 @@ private:
     void configureNotifications();
     void testIosConnection();
     void iosBackup();
+    void manageIosBackups();
 
     DeviceManager& manager_;
     bool& realtimePrintFlag_;

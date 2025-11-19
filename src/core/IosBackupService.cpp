@@ -952,6 +952,209 @@ IosBackupService::BackupResult IosBackupService::PerformBackup(
     return res;
 }
 
+std::vector<IosBackupService::BackupRecord> IosBackupService::ListBackups(
+    const std::string& rootDir,
+    std::string& errMsg)
+{
+    errMsg.clear();
+    std::vector<BackupRecord> records;
+
+    namespace fs = std::filesystem;
+
+    try {
+        fs::path root(rootDir);
+        std::error_code ec;
+        if (!fs::exists(root, ec) || !fs::is_directory(root, ec)) {
+            errMsg = "备份根目录不存在或不是目录: " + rootDir;
+            return records;
+        }
+
+        int badCount = 0;
+
+        for (const auto& udidEntry : fs::directory_iterator(root)) {
+            if (!udidEntry.is_directory()) {
+                continue;
+            }
+            const fs::path& udidPath = udidEntry.path();
+            std::string udid = udidPath.filename().string();
+
+            for (const auto& backupEntry : fs::directory_iterator(udidPath)) {
+                if (!backupEntry.is_directory()) {
+                    continue;
+                }
+                fs::path backupPath = backupEntry.path();
+
+                BackupRecord rec;
+                rec.path = backupPath.string();
+                rec.udid = udid;
+
+                // 查找 Info.plist 或 Manifest.plist
+                fs::path infoPath = backupPath / "Info.plist";
+                fs::path manifestPath = backupPath / "Manifest.plist";
+
+                plist_t plist = nullptr;
+                std::string plistName;
+
+                if (fs::exists(infoPath)) {
+                    plist_read_from_file(infoPath.string().c_str(), &plist, nullptr);
+                    plistName = "Info.plist";
+                } else if (fs::exists(manifestPath)) {
+                    plist_read_from_file(manifestPath.string().c_str(), &plist, nullptr);
+                    plistName = "Manifest.plist";
+                }
+
+                if (!plist || plist_get_node_type(plist) != PLIST_DICT) {
+                    if (plist) plist_free(plist);
+                    ++badCount;
+                    continue;
+                }
+
+                // 从 Info.plist 中读取设备信息
+                if (plistName == "Info.plist") {
+                    plist_t node = nullptr;
+
+                    node = plist_dict_get_item(plist, "Device Name");
+                    if (node && plist_get_node_type(node) == PLIST_STRING) {
+                        char* s = nullptr;
+                        plist_get_string_val(node, &s);
+                        if (s) {
+                            rec.deviceName = s;
+                            free(s);
+                        }
+                    }
+                    if (rec.deviceName.empty()) {
+                        node = plist_dict_get_item(plist, "Display Name");
+                        if (node && plist_get_node_type(node) == PLIST_STRING) {
+                            char* s = nullptr;
+                            plist_get_string_val(node, &s);
+                            if (s) {
+                                rec.deviceName = s;
+                                free(s);
+                            }
+                        }
+                    }
+
+                    node = plist_dict_get_item(plist, "Product Type");
+                    if (node && plist_get_node_type(node) == PLIST_STRING) {
+                        char* s = nullptr;
+                        plist_get_string_val(node, &s);
+                        if (s) {
+                            rec.productType = s;
+                            free(s);
+                        }
+                    }
+
+                    node = plist_dict_get_item(plist, "Product Version");
+                    if (node && plist_get_node_type(node) == PLIST_STRING) {
+                        char* s = nullptr;
+                        plist_get_string_val(node, &s);
+                        if (s) {
+                            rec.iosVersion = s;
+                            free(s);
+                        }
+                    }
+
+                    node = plist_dict_get_item(plist, "Last Backup Date");
+                    if (node && plist_get_node_type(node) == PLIST_DATE) {
+                        int64_t sec = 0;
+                        plist_get_unix_date_val(node, &sec);
+                        rec.backupTime = static_cast<std::time_t>(sec);
+                    }
+                } else {
+                    // Manifest.plist：尝试从 Lockdown 子字典中读取设备信息
+                    plist_t lockdown = plist_dict_get_item(plist, "Lockdown");
+                    if (lockdown && plist_get_node_type(lockdown) == PLIST_DICT) {
+                        plist_t node = nullptr;
+
+                        node = plist_dict_get_item(lockdown, "DeviceName");
+                        if (node && plist_get_node_type(node) == PLIST_STRING) {
+                            char* s = nullptr;
+                            plist_get_string_val(node, &s);
+                            if (s) {
+                                rec.deviceName = s;
+                                free(s);
+                            }
+                        }
+
+                        node = plist_dict_get_item(lockdown, "ProductType");
+                        if (node && plist_get_node_type(node) == PLIST_STRING) {
+                            char* s = nullptr;
+                            plist_get_string_val(node, &s);
+                            if (s) {
+                                rec.productType = s;
+                                free(s);
+                            }
+                        }
+
+                        node = plist_dict_get_item(lockdown, "ProductVersion");
+                        if (node && plist_get_node_type(node) == PLIST_STRING) {
+                            char* s = nullptr;
+                            plist_get_string_val(node, &s);
+                            if (s) {
+                                rec.iosVersion = s;
+                                free(s);
+                            }
+                        }
+                    }
+                }
+
+                plist_free(plist);
+
+                // 粗略统计备份大小
+                std::uint64_t total = 0;
+                try {
+                    for (const auto& p : fs::recursive_directory_iterator(backupPath)) {
+                        if (p.is_regular_file()) {
+                            std::error_code sec;
+                            auto sz = p.file_size(sec);
+                            if (!sec) {
+                                total += sz;
+                            }
+                        }
+                    }
+                } catch (const std::exception& ex) {
+                    spdlog::warn("[IosBackup] recursive_directory_iterator failed at {}: {}",
+                                 backupPath.string(), ex.what());
+                }
+                rec.totalBytes = total;
+
+                records.push_back(std::move(rec));
+            }
+        }
+
+        if (badCount > 0) {
+            errMsg = "扫描完成，跳过 " + std::to_string(badCount) + " 个损坏备份";
+        }
+    } catch (const std::exception& ex) {
+        errMsg = std::string("扫描备份目录时发生异常: ") + ex.what();
+    }
+
+    return records;
+}
+
+IosBackupService::BackupResult IosBackupService::PerformRestore(
+    const BackupRecord& record,
+    const std::string& targetUdid,
+    std::function<void(double,const std::string&)> onProgress)
+{
+    (void)record;
+    (void)targetUdid;
+    if (!onProgress) {
+        onProgress = [](double, const std::string&) {};
+    }
+
+    onProgress(0.0, "restore not implemented yet");
+
+    BackupResult res;
+    res.code = BackupResultCode::Unsupported;
+    res.message = "restore not implemented yet";
+
+    spdlog::info("[IosBackup] PerformRestore called but not implemented yet");
+
+    onProgress(1.0, "restore not implemented yet");
+    return res;
+}
+
 #else  // !WITH_LIBIMOBILEDEVICE
 
 // 未启用 libimobiledevice：TestConnection 的 stub
@@ -979,6 +1182,35 @@ IosBackupService::BackupResult IosBackupService::PerformBackup(
     res.code = BackupResultCode::Unsupported;
     res.message = "IosBackupService: 当前构建未启用 libimobiledevice（请使用 -DWITH_LIBIMOBILEDEVICE=ON 并正确安装依赖）";
     spdlog::warn("[IosBackup] PerformBackup called but libimobiledevice support is not enabled");
+    return res;
+}
+
+std::vector<IosBackupService::BackupRecord> IosBackupService::ListBackups(
+    const std::string& rootDir,
+    std::string& errMsg)
+{
+    (void)rootDir;
+    errMsg = "IosBackupService: 当前构建未启用 libimobiledevice，无法扫描 iOS 备份（请使用 -DWITH_LIBIMOBILEDEVICE=ON 并正确安装依赖）";
+    spdlog::warn("[IosBackup] ListBackups called but libimobiledevice support is not enabled");
+    return {};
+}
+
+IosBackupService::BackupResult IosBackupService::PerformRestore(
+    const BackupRecord& record,
+    const std::string& targetUdid,
+    std::function<void(double,const std::string&)> onProgress)
+{
+    (void)record;
+    (void)targetUdid;
+    if (onProgress) {
+        onProgress(0.0, "libimobiledevice not compiled in");
+        onProgress(1.0, "Restore unsupported");
+    }
+
+    BackupResult res;
+    res.code = BackupResultCode::Unsupported;
+    res.message = "IosBackupService: 当前构建未启用 libimobiledevice，无法执行还原（请使用 -DWITH_LIBIMOBILEDEVICE=ON 并正确安装依赖）";
+    spdlog::warn("[IosBackup] PerformRestore called but libimobiledevice support is not enabled");
     return res;
 }
 
